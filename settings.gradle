@@ -1,0 +1,12 @@
+pluginManagement {
+    repositories {
+        gradlePluginPortal()
+        mavenCentral()
+    }
+}
+
+rootProject.name = 'SampleForTracing'
+
+include 'tracing-service'
+
+project(':tracing-service').projectDir = file('services/tracing-service')
