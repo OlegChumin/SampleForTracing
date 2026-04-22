@@ -2,6 +2,7 @@ plugins {
     id 'base'
     id 'org.springframework.boot' version '4.0.5' apply false
     id 'io.spring.dependency-management' version '1.1.7' apply false
+    id 'jacoco'
 }
 
 group = 'org.example'
@@ -9,9 +10,14 @@ version = '0.1.0'
 
 description = 'Workspace for tracing-related sample microservices'
 
+repositories {
+    mavenCentral()
+}
+
 subprojects {
     apply plugin: 'java'
     apply plugin: 'io.spring.dependency-management'
+    apply plugin: 'jacoco'
 
     group = rootProject.group
     version = rootProject.version
@@ -26,7 +32,37 @@ subprojects {
         }
     }
 
+    jacoco {
+        toolVersion = '0.8.14'
+    }
+
     tasks.withType(Test).configureEach {
         useJUnitPlatform()
+        finalizedBy(tasks.named('jacocoTestReport'))
+    }
+
+    tasks.named('jacocoTestReport') {
+        dependsOn(tasks.named('test'))
+
+        reports {
+            xml.required = true
+            html.required = true
+            csv.required = false
+        }
+    }
+}
+
+tasks.register('jacocoRootReport', JacocoReport) {
+    dependsOn(subprojects.collect { it.tasks.named('test') })
+
+    additionalSourceDirs.from(files(subprojects.collect { it.sourceSets.main.allSource.srcDirs }))
+    sourceDirectories.from(files(subprojects.collect { it.sourceSets.main.allSource.srcDirs }))
+    classDirectories.from(files(subprojects.collect { it.sourceSets.main.output }))
+    executionData.from(files(subprojects.collect { it.layout.buildDirectory.file('jacoco/test.exec') }))
+
+    reports {
+        xml.required = true
+        html.required = true
+        csv.required = false
     }
 }

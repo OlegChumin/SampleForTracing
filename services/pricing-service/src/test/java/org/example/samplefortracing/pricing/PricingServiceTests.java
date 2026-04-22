@@ -37,4 +37,26 @@ class PricingServiceTests {
         assertThat(response.discountAmount()).isEqualByComparingTo("18.00");
         assertThat(response.totalAmount()).isEqualByComparingTo("181.44");
     }
+
+    /**
+     * Проверяет скидку по количеству для обычного клиента.
+     */
+    @Test
+    void calculateAppliesQuantityDiscount() {
+        PricingResponse response = pricingService.calculate(new PricingRequest("customer-1", "SKU-LAMP-03", 5));
+
+        assertThat(response.discountAmount()).isEqualByComparingTo("11.25");
+        assertThat(response.totalAmount()).isEqualByComparingTo("239.40");
+    }
+
+    /**
+     * Проверяет использование цены по умолчанию для неизвестного товара.
+     */
+    @Test
+    void calculateUsesFallbackPriceForUnknownItem() {
+        PricingResponse response = pricingService.calculate(new PricingRequest("customer-1", "UNKNOWN", 1));
+
+        assertThat(response.subtotal()).isEqualByComparingTo("99.00");
+        assertThat(response.totalAmount()).isEqualByComparingTo("110.88");
+    }
 }

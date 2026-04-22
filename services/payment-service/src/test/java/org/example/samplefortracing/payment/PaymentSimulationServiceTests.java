@@ -40,4 +40,51 @@ class PaymentSimulationServiceTests {
         )).isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("422 UNPROCESSABLE_ENTITY");
     }
+
+    /**
+     * Проверяет конфликтный сценарий оплаты.
+     */
+    @Test
+    void chargeFailsForConflictScenario() {
+        assertThatThrownBy(() -> paymentSimulationService.charge(
+            new PaymentRequest("ORD-3", "customer-1", new BigDecimal("80.00"), "USD", "CONFLICT")
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("409 CONFLICT");
+    }
+
+    /**
+     * Проверяет сценарий внутренней ошибки платёжного шлюза.
+     */
+    @Test
+    void chargeFailsForErrorScenario() {
+        assertThatThrownBy(() -> paymentSimulationService.charge(
+            new PaymentRequest("ORD-4", "customer-1", new BigDecimal("80.00"), "USD", "ERROR")
+        )).isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("500 INTERNAL_SERVER_ERROR");
+    }
+
+    /**
+     * Проверяет нормализацию пустого сценария к успешной оплате.
+     */
+    @Test
+    void chargeUsesSuccessScenarioForBlankValue() {
+        PaymentResponse response = paymentSimulationService.charge(
+            new PaymentRequest("ORD-5", "customer-1", new BigDecimal("80.00"), "USD", " ")
+        );
+
+        assertThat(response.status()).isEqualTo("COMPLETED");
+    }
+
+    /**
+     * Проверяет успешный сценарий оплаты с задержкой.
+     */
+    @Test
+    void chargeCompletesForDelayedScenario() {
+        PaymentResponse response = paymentSimulationService.charge(
+            new PaymentRequest("ORD-6", "customer-1", new BigDecimal("80.00"), "USD", "DELAYED")
+        );
+
+        assertThat(response.status()).isEqualTo("COMPLETED");
+        assertThat(response.message()).contains("delay");
+    }
 }

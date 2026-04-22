@@ -39,4 +39,24 @@ class InventoryReservationServiceTests {
             .isInstanceOf(ResponseStatusException.class)
             .hasMessageContaining("409 CONFLICT");
     }
+
+    /**
+     * Проверяет ошибку при неизвестном товаре.
+     */
+    @Test
+    void reserveFailsWhenItemIsUnknown() {
+        assertThatThrownBy(() -> inventoryReservationService.reserve(new InventoryReservationRequest("UNKNOWN", 1)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("404 NOT_FOUND");
+    }
+
+    /**
+     * Проверяет ошибку при невалидном количестве.
+     */
+    @Test
+    void reserveFailsWhenQuantityIsNotPositive() {
+        assertThatThrownBy(() -> inventoryReservationService.reserve(new InventoryReservationRequest("SKU-CHAIR-01", 0)))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("400 BAD_REQUEST");
+    }
 }

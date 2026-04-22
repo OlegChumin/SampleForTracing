@@ -1,4 +1,4 @@
-package org.example.samplefortracing.order;
+package org.example.samplefortracing.order.service;
 
 import org.example.samplefortracing.order.api.dto.OrderProcessRequest;
 import org.example.samplefortracing.order.api.dto.OrderProcessResponse;
@@ -12,15 +12,17 @@ import org.example.samplefortracing.order.client.dto.PaymentResponse;
 import org.example.samplefortracing.order.client.dto.PricingRequest;
 import org.example.samplefortracing.order.client.dto.PricingResponse;
 import org.example.samplefortracing.order.repository.InMemoryOrderRepository;
-import org.example.samplefortracing.order.service.OrderProcessingService;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.web.server.ResponseStatusException;
 
 import java.math.BigDecimal;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 /**
  * Проверяет основной сценарий оркестрации заказа.
@@ -39,16 +41,7 @@ class OrderProcessingServiceTests {
      */
     @Test
     void processReturnsCompletedOrder() {
-        InventoryGateway inventoryGateway = new StubInventoryGateway();
-        PricingGateway pricingGateway = new StubPricingGateway();
-        PaymentGateway paymentGateway = new StubPaymentGateway();
-        OrderProcessingService orderProcessingService = new OrderProcessingService(
-            inventoryGateway,
-            pricingGateway,
-            paymentGateway,
-            new InMemoryOrderRepository(),
-            executorService
-        );
+        OrderProcessingService orderProcessingService = createOrderProcessingService(new InMemoryOrderRepository());
 
         OrderProcessResponse response = orderProcessingService.process(
             new OrderProcessRequest("customer-1", "SKU-CHAIR-01", 2, "SUCCESS")
@@ -58,6 +51,72 @@ class OrderProcessingServiceTests {
         assertThat(response.reservationId()).isEqualTo("RSV-test");
         assertThat(response.paymentId()).isEqualTo("PAY-test");
         assertThat(response.totalAmount()).isEqualByComparingTo("268.80");
+    }
+
+    /**
+     * Проверяет чтение сохранённого заказа после успешной обработки.
+     */
+    @Test
+    void getOrderReturnsSavedOrder() {
+        OrderProcessingService orderProcessingService = createOrderProcessingService(new InMemoryOrderRepository());
+
+        OrderProcessResponse response = orderProcessingService.process(
+            new OrderProcessRequest("customer-1", "SKU-CHAIR-01", 2, "SUCCESS")
+        );
+
+        assertThat(orderProcessingService.getOrder(response.orderId()).status()).isEqualTo("COMPLETED");
+    }
+
+    /**
+     * Проверяет ошибку чтения отсутствующего заказа.
+     */
+    @Test
+    void getOrderFailsWhenOrderDoesNotExist() {
+        OrderProcessingService orderProcessingService = createOrderProcessingService(new InMemoryOrderRepository());
+
+        assertThatThrownBy(() -> orderProcessingService.getOrder("missing"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("404 NOT_FOUND");
+    }
+
+    /**
+     * Проверяет проброс ошибки runtime из downstream вызова.
+     */
+    @Test
+    void joinStageRethrowsRuntimeExceptionFromDownstream() {
+        OrderProcessingService orderProcessingService = createOrderProcessingService(new InMemoryOrderRepository());
+        CompletableFuture<String> failedFuture = CompletableFuture.failedFuture(new IllegalStateException("boom"));
+
+        assertThatThrownBy(() -> orderProcessingService.joinStage(failedFuture, "pricing-service"))
+            .isInstanceOf(IllegalStateException.class)
+            .hasMessageContaining("boom");
+    }
+
+    /**
+     * Проверяет оборачивание checked-ошибки в ResponseStatusException.
+     */
+    @Test
+    void joinStageWrapsNonRuntimeException() {
+        OrderProcessingService orderProcessingService = createOrderProcessingService(new InMemoryOrderRepository());
+        CompletableFuture<String> failedFuture = new CompletableFuture<>();
+        failedFuture.completeExceptionally(new Exception("checked"));
+
+        assertThatThrownBy(() -> orderProcessingService.joinStage(failedFuture, "inventory-service"))
+            .isInstanceOf(ResponseStatusException.class)
+            .hasMessageContaining("500 INTERNAL_SERVER_ERROR");
+    }
+
+    private OrderProcessingService createOrderProcessingService(InMemoryOrderRepository repository) {
+        InventoryGateway inventoryGateway = new StubInventoryGateway();
+        PricingGateway pricingGateway = new StubPricingGateway();
+        PaymentGateway paymentGateway = new StubPaymentGateway();
+        return new OrderProcessingService(
+            inventoryGateway,
+            pricingGateway,
+            paymentGateway,
+            repository,
+            executorService
+        );
     }
 
     /**
