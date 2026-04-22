@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tracing Control Panel</title>
+    <link rel="stylesheet" href="/assets/control-panel.css">
+</head>
+<body>
+<div class="page-shell">
+    <header class="hero">
+        <div class="hero-copy">
+            <p class="eyebrow">SampleForTracing</p>
+            <h1>Control panel для checkout-трейсов</h1>
+            <p class="hero-text">
+                Запускай готовые сценарии, проверяй состояние сервисов и открывай Jaeger UI без ручного набора URL.
+            </p>
+        </div>
+        <div class="hero-actions">
+            <button class="primary-button" id="refresh-services-button" type="button">Refresh services</button>
+            <button class="secondary-button" id="open-jaeger-button" type="button">Open Jaeger UI</button>
+        </div>
+    </header>
+
+    <main class="dashboard-grid">
+        <section class="panel panel-form">
+            <div class="panel-header">
+                <h2>Checkout scenarios</h2>
+                <span class="panel-badge">REST fan-out</span>
+            </div>
+            <form id="checkout-form">
+                <label>
+                    Customer ID
+                    <input id="customer-id" name="customerId" type="text" value="customer-1">
+                </label>
+                <label>
+                    Item ID
+                    <input id="item-id" name="itemId" type="text" value="SKU-CHAIR-01">
+                </label>
+                <label>
+                    Quantity
+                    <input id="quantity" name="quantity" type="number" min="1" value="2">
+                </label>
+                <label>
+                    Payment scenario
+                    <select id="payment-scenario" name="paymentScenario">
+                        <option value="SUCCESS">SUCCESS</option>
+                        <option value="DECLINED">DECLINED</option>
+                        <option value="CONFLICT">CONFLICT</option>
+                        <option value="ERROR">ERROR</option>
+                        <option value="DELAYED">DELAYED</option>
+                    </select>
+                </label>
+                <div class="form-actions">
+                    <button class="primary-button" type="submit">Run custom checkout</button>
+                    <button class="ghost-button" id="load-last-order-button" type="button">Load last order</button>
+                </div>
+            </form>
+
+            <div class="quick-actions">
+                <button class="scenario-button" data-scenario="SUCCESS" type="button">Happy path</button>
+                <button class="scenario-button" data-scenario="DECLINED" type="button">Payment declined</button>
+                <button class="scenario-button" data-scenario="CONFLICT" type="button">Retry conflict</button>
+                <button class="scenario-button" data-scenario="ERROR" type="button">Payment error</button>
+                <button class="scenario-button" data-scenario="DELAYED" type="button">Delayed payment</button>
+            </div>
+        </section>
+
+        <section class="panel panel-services">
+            <div class="panel-header">
+                <h2>Service status</h2>
+                <span class="panel-badge">Actuator health</span>
+            </div>
+            <div id="services-grid" class="services-grid"></div>
+        </section>
+
+        <section class="panel panel-output">
+            <div class="panel-header">
+                <h2>Last checkout response</h2>
+                <span class="panel-badge">API gateway</span>
+            </div>
+            <pre id="checkout-response" class="output-box">No checkout executed yet.</pre>
+        </section>
+
+        <section class="panel panel-output">
+            <div class="panel-header">
+                <h2>Order snapshot</h2>
+                <span class="panel-badge">Order service</span>
+            </div>
+            <pre id="order-response" class="output-box">No order loaded yet.</pre>
+        </section>
+
+        <section class="panel panel-links">
+            <div class="panel-header">
+                <h2>Useful links</h2>
+                <span class="panel-badge">Open in new tab</span>
+            </div>
+            <div class="link-grid">
+                <a href="http://localhost:16686" target="_blank" rel="noreferrer">Jaeger UI</a>
+                <a href="http://localhost:8080/actuator/health" target="_blank" rel="noreferrer">api-gateway health</a>
+                <a href="http://localhost:8081/actuator/health" target="_blank" rel="noreferrer">order-service health</a>
+                <a href="http://localhost:8082/actuator/health" target="_blank" rel="noreferrer">inventory-service health</a>
+                <a href="http://localhost:8083/actuator/health" target="_blank" rel="noreferrer">pricing-service health</a>
+                <a href="http://localhost:8084/actuator/health" target="_blank" rel="noreferrer">payment-service health</a>
+            </div>
+        </section>
+    </main>
+</div>
+
+<script src="/assets/control-panel.js"></script>
+</body>
+</html>

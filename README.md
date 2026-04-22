@@ -24,6 +24,35 @@
 
 HTML-отчёт будет создан в `build/reports/jacoco/jacocoRootReport/html/index.html`.
 
+## Observability
+
+Поднять локальный Jaeger all-in-one и сразу открыть UI:
+
+```powershell
+./infrastructure/start-jaeger.ps1
+```
+
+Docker Compose конфигурация лежит в `infrastructure/docker-compose.yml`, кастомный образ Jaeger описан в `infrastructure/jaeger/Dockerfile`.
+
+Поднять весь локальный стенд одной командой:
+
+```powershell
+./infrastructure/start-demo.ps1
+```
+
+Скрипт:
+- запускает Jaeger all-in-one через Docker Compose;
+- стартует все 5 сервисов в отдельных окнах PowerShell;
+- автоматически открывает:
+  - `http://localhost:8080`
+  - `http://localhost:16686`
+
+Остановить стенд:
+
+```powershell
+./infrastructure/stop-demo.ps1
+```
+
 ## Запуск
 
 Запускайте сервисы в отдельных терминалах:
@@ -41,6 +70,18 @@ HTML-отчёт будет создан в `build/reports/jacoco/jacocoRootRepor
 ```powershell
 Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
 ```
+
+Панель управления доступна по адресу:
+
+```text
+http://localhost:8080
+```
+
+На странице есть:
+- кнопки запуска типовых checkout-сценариев;
+- просмотр статуса всех сервисов;
+- загрузка последнего заказа;
+- быстрые ссылки на actuator endpoints и Jaeger UI.
 
 ## Сценарии оплаты
 

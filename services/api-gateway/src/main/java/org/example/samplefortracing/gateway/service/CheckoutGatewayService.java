@@ -5,6 +5,7 @@ import org.example.samplefortracing.gateway.api.dto.CheckoutResponse;
 import org.example.samplefortracing.gateway.client.OrderGateway;
 import org.example.samplefortracing.gateway.client.dto.OrderProcessRequest;
 import org.example.samplefortracing.gateway.client.dto.OrderProcessResponse;
+import org.example.samplefortracing.gateway.client.dto.OrderSummaryResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -47,5 +48,16 @@ public class CheckoutGatewayService {
             response.totalAmount(),
             response.currency()
         );
+    }
+
+    /**
+     * Возвращает сохранённое состояние заказа из сервиса заказов.
+     *
+     * @param orderId идентификатор заказа
+     * @return текущее состояние заказа
+     */
+    public OrderSummaryResponse getOrder(String orderId) {
+        LOGGER.info("Loading order summary for {}", orderId);
+        return orderGateway.getOrder(orderId);
     }
 }

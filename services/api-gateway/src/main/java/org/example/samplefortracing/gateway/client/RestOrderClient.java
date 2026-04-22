@@ -2,6 +2,7 @@ package org.example.samplefortracing.gateway.client;
 
 import org.example.samplefortracing.gateway.client.dto.OrderProcessRequest;
 import org.example.samplefortracing.gateway.client.dto.OrderProcessResponse;
+import org.example.samplefortracing.gateway.client.dto.OrderSummaryResponse;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.web.client.RestClient;
@@ -35,5 +36,17 @@ public class RestOrderClient implements OrderGateway {
             .body(request)
             .retrieve()
             .body(OrderProcessResponse.class);
+    }
+
+    /**
+     * {@inheritDoc}
+     */
+    @Override
+    public OrderSummaryResponse getOrder(String orderId) {
+        LOGGER.info("Calling order-service for order {}", orderId);
+        return restClient.get()
+            .uri("/api/v1/orders/{orderId}", orderId)
+            .retrieve()
+            .body(OrderSummaryResponse.class);
     }
 }

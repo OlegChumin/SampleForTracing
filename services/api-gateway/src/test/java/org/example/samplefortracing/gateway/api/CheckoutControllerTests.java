@@ -5,6 +5,7 @@ import org.example.samplefortracing.gateway.api.dto.CheckoutResponse;
 import org.example.samplefortracing.gateway.client.OrderGateway;
 import org.example.samplefortracing.gateway.client.dto.OrderProcessRequest;
 import org.example.samplefortracing.gateway.client.dto.OrderProcessResponse;
+import org.example.samplefortracing.gateway.client.dto.OrderSummaryResponse;
 import org.example.samplefortracing.gateway.service.CheckoutGatewayService;
 import org.junit.jupiter.api.Test;
 
@@ -22,7 +23,17 @@ class CheckoutControllerTests {
      */
     @Test
     void checkoutDelegatesToService() {
-        OrderGateway orderGateway = request -> new OrderProcessResponse("ORD-1", "COMPLETED", "RSV-1", "PAY-1", new BigDecimal("10.00"), "USD");
+        OrderGateway orderGateway = new OrderGateway() {
+            @Override
+            public OrderProcessResponse process(OrderProcessRequest request) {
+                return new OrderProcessResponse("ORD-1", "COMPLETED", "RSV-1", "PAY-1", new BigDecimal("10.00"), "USD");
+            }
+
+            @Override
+            public OrderSummaryResponse getOrder(String orderId) {
+                return new OrderSummaryResponse(orderId, "customer-1", "SKU-1", 1, "COMPLETED", new BigDecimal("10.00"), "USD");
+            }
+        };
         CheckoutGatewayService checkoutGatewayService = new CheckoutGatewayService(orderGateway);
         CheckoutController checkoutController = new CheckoutController(checkoutGatewayService);
 

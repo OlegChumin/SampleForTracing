@@ -2,6 +2,7 @@ package org.example.samplefortracing.gateway.client;
 
 import org.example.samplefortracing.gateway.client.dto.OrderProcessRequest;
 import org.example.samplefortracing.gateway.client.dto.OrderProcessResponse;
+import org.example.samplefortracing.gateway.client.dto.OrderSummaryResponse;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.MediaType;
@@ -40,6 +41,29 @@ class RestOrderClientTests {
 
         assertThat(response.orderId()).isEqualTo("ORD-1");
         assertThat(response.totalAmount()).isEqualByComparingTo(BigDecimal.valueOf(268.8));
+        server.verify();
+    }
+
+    /**
+     * Проверяет корректный вызов endpoint чтения заказа.
+     */
+    @Test
+    void getOrderCallsOrderServiceEndpoint() {
+        RestClient.Builder builder = RestClient.builder().baseUrl("http://localhost:8081");
+        MockRestServiceServer server = MockRestServiceServer.bindTo(builder).build();
+        RestOrderClient restOrderClient = new RestOrderClient(builder.build());
+
+        server.expect(requestTo("http://localhost:8081/api/v1/orders/ORD-1"))
+            .andExpect(method(HttpMethod.GET))
+            .andRespond(withSuccess(
+                "{\"orderId\":\"ORD-1\",\"customerId\":\"customer-1\",\"itemId\":\"SKU-1\",\"quantity\":2,\"status\":\"COMPLETED\",\"totalAmount\":268.80,\"currency\":\"USD\"}",
+                MediaType.APPLICATION_JSON
+            ));
+
+        OrderSummaryResponse response = restOrderClient.getOrder("ORD-1");
+
+        assertThat(response.orderId()).isEqualTo("ORD-1");
+        assertThat(response.status()).isEqualTo("COMPLETED");
         server.verify();
     }
 }
