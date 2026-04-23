@@ -35,11 +35,15 @@ try {
     Start-Sleep -Seconds 12
 
     Start-Process "http://localhost:16686"
+    Start-Process "http://localhost:9091"
     Start-Process "http://localhost:9090"
+    Start-Process "http://localhost:3000"
     Start-Process "http://localhost:8080"
 
     Write-Host "Control panel should be available on http://localhost:8080"
     Write-Host "Spring Boot Admin should be available on http://localhost:9090"
+    Write-Host "Grafana dashboard should be available on http://localhost:3000"
+    Write-Host "Prometheus should be available on http://localhost:9091"
     Write-Host "Jaeger UI should be available on http://localhost:16686"
 }
 finally {

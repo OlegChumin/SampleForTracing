@@ -1,0 +1,11 @@
+apiVersion: 1
+
+providers:
+  - name: sample-for-tracing
+    orgId: 1
+    folder: Sample For Tracing
+    type: file
+    disableDeletion: false
+    editable: true
+    options:
+      path: /var/lib/grafana/dashboards

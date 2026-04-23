@@ -35,6 +35,11 @@ HTML-отчёт будет создан в `build/reports/jacoco/jacocoRootRepor
 
 Docker Compose конфигурация лежит в `infrastructure/docker-compose.yml`, кастомный образ Jaeger описан в `infrastructure/jaeger/Dockerfile`.
 
+Локальный observability stack поднимает сразу:
+- Jaeger UI: `http://localhost:16686`
+- Prometheus: `http://localhost:9091`
+- Grafana: `http://localhost:3000`
+
 Поднять весь локальный стенд одной командой:
 
 ```powershell
@@ -43,11 +48,14 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 
 Скрипт:
 - запускает Jaeger all-in-one через Docker Compose;
+- запускает Prometheus и Grafana через Docker Compose;
 - запускает Redpanda как локальный Kafka-compatible broker;
 - стартует Spring Boot Admin и все 5 сервисов в отдельных окнах PowerShell;
 - автоматически открывает:
   - `http://localhost:8080`
   - `http://localhost:9090`
+  - `http://localhost:3000`
+  - `http://localhost:9091`
   - `http://localhost:16686`
 
 Остановить стенд:
@@ -87,6 +95,18 @@ Spring Boot Admin доступен по адресу:
 http://localhost:9090
 ```
 
+Grafana с автоматически загруженным домашним dashboard доступна по адресу:
+
+```text
+http://localhost:3000
+```
+
+Prometheus доступен по адресу:
+
+```text
+http://localhost:9091
+```
+
 На странице есть:
 - кнопки запуска типовых checkout-сценариев;
 - просмотр статуса всех сервисов;
@@ -97,6 +117,24 @@ http://localhost:9090
 - все 5 прикладных сервисов;
 - их `health`, `info`, `beans` и другие доступные actuator endpoints;
 - состояние инстансов в одном месте без ручного перехода по каждому порту.
+
+В Grafana сразу провиженится dashboard `Tracing Demo Overview` с:
+- общим статусом сервисов;
+- HTTP throughput;
+- latency p95/p99;
+- 5xx error ratio;
+- breakdown по HTTP status codes;
+- JVM heap/threads;
+- CPU процесса;
+- Kafka produced/consumed records.
+
+Prometheus забирает метрики с `/actuator/prometheus` у:
+- `admin-server`
+- `api-gateway`
+- `order-service`
+- `inventory-service`
+- `pricing-service`
+- `payment-service`
 
 ## Сценарии оплаты
 
