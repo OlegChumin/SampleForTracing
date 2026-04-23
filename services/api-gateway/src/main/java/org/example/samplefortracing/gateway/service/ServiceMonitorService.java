@@ -52,7 +52,7 @@ public class ServiceMonitorService {
      */
     public List<ServiceStatusResponse> getServiceStatuses() {
         return List.of(
-            new ServiceStatusResponse("api-gateway", "http://localhost:8080", "UP"),
+            new ServiceStatusResponse("api-gateway", "http://localhost:18080", "UP"),
             probe("order-service", orderServiceBaseUrl),
             probe("inventory-service", inventoryServiceBaseUrl),
             probe("pricing-service", pricingServiceBaseUrl),

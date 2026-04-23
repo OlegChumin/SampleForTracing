@@ -8,8 +8,8 @@ try {
     Start-Sleep -Seconds 3
     Write-Host "Observability stack is starting:"
     Write-Host "  Jaeger: http://localhost:16686"
-    Write-Host "  Prometheus: http://localhost:9091"
-    Write-Host "  Grafana: http://localhost:3000"
+    Write-Host "  Prometheus: http://localhost:19091"
+    Write-Host "  Grafana: http://localhost:13000"
 }
 finally {
     Pop-Location

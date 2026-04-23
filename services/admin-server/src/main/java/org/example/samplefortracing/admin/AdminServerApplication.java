@@ -23,6 +23,6 @@ public class AdminServerApplication {
 
     @EventListener(ApplicationReadyEvent.class)
     public void logApplicationReady() {
-        LOGGER.info("Spring Boot Admin is ready on http://localhost:9090");
+        LOGGER.info("Spring Boot Admin is ready on http://localhost:19090");
     }
 }

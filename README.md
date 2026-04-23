@@ -37,8 +37,8 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 
 Локальный observability stack поднимает сразу:
 - Jaeger UI: `http://localhost:16686`
-- Prometheus: `http://localhost:9091`
-- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:19091`
+- Grafana: `http://localhost:13000`
 
 Поднять весь локальный стенд одной командой:
 
@@ -52,10 +52,10 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 - запускает Redpanda как локальный Kafka-compatible broker;
 - стартует Spring Boot Admin и все 5 сервисов в отдельных окнах PowerShell;
 - автоматически открывает:
-  - `http://localhost:8080`
-  - `http://localhost:9090`
-  - `http://localhost:3000`
-  - `http://localhost:9091`
+  - `http://localhost:18080`
+  - `http://localhost:19090`
+  - `http://localhost:13000`
+  - `http://localhost:19091`
   - `http://localhost:16686`
 
 Остановить стенд:
@@ -80,31 +80,31 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 Пример checkout-запроса:
 
 ```powershell
-Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:18080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
 ```
 
 Панель управления доступна по адресу:
 
 ```text
-http://localhost:8080
+http://localhost:18080
 ```
 
 Spring Boot Admin доступен по адресу:
 
 ```text
-http://localhost:9090
+http://localhost:19090
 ```
 
 Grafana с автоматически загруженным домашним dashboard доступна по адресу:
 
 ```text
-http://localhost:3000
+http://localhost:13000
 ```
 
 Prometheus доступен по адресу:
 
 ```text
-http://localhost:9091
+http://localhost:19091
 ```
 
 На странице есть:
@@ -223,7 +223,7 @@ order-service -> checkout.order-completed -> payment-service
 ```powershell
 ./gradlew.bat test
 ./infrastructure/start-demo.ps1
-Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
+Invoke-RestMethod -Method Post -Uri http://localhost:18080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
 ```
 
 Проверка consumer groups:
