@@ -5,6 +5,7 @@
 ## Структура
 
 - `services/api-gateway` - внешняя точка входа для checkout-запросов.
+- `services/admin-server` - Spring Boot Admin UI для обзора всех сервисов и actuator endpoints.
 - `services/order-service` - оркестрация полного checkout-сценария.
 - `services/inventory-service` - резервирование товарных остатков.
 - `services/pricing-service` - расчёт суммы, скидок и налога.
@@ -43,9 +44,10 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 Скрипт:
 - запускает Jaeger all-in-one через Docker Compose;
 - запускает Redpanda как локальный Kafka-compatible broker;
-- стартует все 5 сервисов в отдельных окнах PowerShell;
+- стартует Spring Boot Admin и все 5 сервисов в отдельных окнах PowerShell;
 - автоматически открывает:
   - `http://localhost:8080`
+  - `http://localhost:9090`
   - `http://localhost:16686`
 
 Остановить стенд:
@@ -59,6 +61,7 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 Запускайте сервисы в отдельных терминалах:
 
 ```powershell
+./gradlew.bat :admin-server:bootRun
 ./gradlew.bat :inventory-service:bootRun
 ./gradlew.bat :pricing-service:bootRun
 ./gradlew.bat :payment-service:bootRun
@@ -78,11 +81,22 @@ Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/checkout -Conte
 http://localhost:8080
 ```
 
+Spring Boot Admin доступен по адресу:
+
+```text
+http://localhost:9090
+```
+
 На странице есть:
 - кнопки запуска типовых checkout-сценариев;
 - просмотр статуса всех сервисов;
 - загрузка последнего заказа;
 - быстрые ссылки на actuator endpoints и Jaeger UI.
+
+В Spring Boot Admin видны:
+- все 5 прикладных сервисов;
+- их `health`, `info`, `beans` и другие доступные actuator endpoints;
+- состояние инстансов в одном месте без ручного перехода по каждому порту.
 
 ## Сценарии оплаты
 

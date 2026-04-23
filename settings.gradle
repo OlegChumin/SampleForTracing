@@ -8,12 +8,14 @@ pluginManagement {
 rootProject.name = 'SampleForTracing'
 
 include 'api-gateway'
+include 'admin-server'
 include 'order-service'
 include 'inventory-service'
 include 'pricing-service'
 include 'payment-service'
 
 project(':api-gateway').projectDir = file('services/api-gateway')
+project(':admin-server').projectDir = file('services/admin-server')
 project(':order-service').projectDir = file('services/order-service')
 project(':inventory-service').projectDir = file('services/inventory-service')
 project(':pricing-service').projectDir = file('services/pricing-service')

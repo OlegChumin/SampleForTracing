@@ -2,14 +2,12 @@ plugins {
     id 'org.springframework.boot'
 }
 
-description = 'Order orchestration service for checkout tracing demo'
+description = 'Spring Boot Admin server for checkout tracing demo'
 
 dependencies {
     implementation 'org.springframework.boot:spring-boot-starter-actuator'
-    implementation 'de.codecentric:spring-boot-admin-starter-client'
     implementation 'org.springframework.boot:spring-boot-starter-web'
-    implementation 'org.springframework.kafka:spring-kafka'
-    implementation 'org.nextbi.dataflow:tracing-common:0.0.5'
+    implementation 'de.codecentric:spring-boot-admin-starter-server'
     testImplementation 'org.springframework.boot:spring-boot-starter-test'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
 }

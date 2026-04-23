@@ -7,6 +7,7 @@ plugins {
 
 group = 'org.example'
 version = '0.1.0'
+ext.springBootAdminVersion = '3.5.8'
 
 description = 'Workspace for tracing-related sample microservices'
 
@@ -26,6 +27,12 @@ subprojects {
     repositories {
         mavenLocal()
         mavenCentral()
+    }
+
+    dependencyManagement {
+        imports {
+            mavenBom "de.codecentric:spring-boot-admin-dependencies:${rootProject.springBootAdminVersion}"
+        }
     }
 
     java {

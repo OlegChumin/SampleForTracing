@@ -25,6 +25,7 @@ Push-Location $projectRoot
 try {
     & "$scriptDirectory\start-jaeger.ps1"
 
+    Start-ServiceWindow -ServiceName "admin-server" -GradleTask ":admin-server:bootRun"
     Start-ServiceWindow -ServiceName "inventory-service" -GradleTask ":inventory-service:bootRun"
     Start-ServiceWindow -ServiceName "pricing-service" -GradleTask ":pricing-service:bootRun"
     Start-ServiceWindow -ServiceName "payment-service" -GradleTask ":payment-service:bootRun"
@@ -34,9 +35,11 @@ try {
     Start-Sleep -Seconds 12
 
     Start-Process "http://localhost:16686"
+    Start-Process "http://localhost:9090"
     Start-Process "http://localhost:8080"
 
     Write-Host "Control panel should be available on http://localhost:8080"
+    Write-Host "Spring Boot Admin should be available on http://localhost:9090"
     Write-Host "Jaeger UI should be available on http://localhost:16686"
 }
 finally {

@@ -13,7 +13,7 @@ finally {
 Get-CimInstance Win32_Process |
     Where-Object {
         $_.Name -match 'java(.exe)?' -and
-        $_.CommandLine -match 'api-gateway|order-service|inventory-service|pricing-service|payment-service'
+        $_.CommandLine -match 'admin-server|api-gateway|order-service|inventory-service|pricing-service|payment-service'
     } |
     ForEach-Object {
         Stop-Process -Id $_.ProcessId -Force
