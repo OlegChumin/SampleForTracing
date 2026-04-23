@@ -102,10 +102,88 @@ http://localhost:8080
 - `payment-service` читает `checkout.order-completed`.
 
 REST-цепочка при этом остаётся основной, Kafka используется как параллельная ветка для проверки producer/consumer spans.
-Trace context для Kafka прокидывается через `KafkaTracingService` из `tracing-common`: producer пишет headers в `ProducerRecord`, consumers открывают span обработки из `ConsumerRecord`.
+Trace context для Kafka прокидывается автоматически через `tracing-common`: producer пишет headers при обычном `KafkaTemplate.send(...)`, consumers открывают span обработки вокруг обычных `@KafkaListener` методов.
+
+## Результаты Проверок Tracing
+
+### REST и Async
+
+Проверено на `org.nextbi.dataflow:tracing-common:0.0.4`.
+
+Что подтверждено:
+
+- сервисы работают без локальных `JaegerTracerConfiguration`;
+- HTTP propagation работает через обычный `RestClient`;
+- async propagation работает через `CompletableFuture.supplyAsync(..., ExecutorService)`;
+- `inventory-service` и `pricing-service` не становятся отдельными root traces;
+- checkout trace содержит все 5 сервисов;
+- dependency graph строится.
+
+Проверенный REST/async flow:
+
+```text
+api-gateway -> order-service
+order-service -> inventory-service
+order-service -> pricing-service
+order-service -> payment-service
+```
+
+### Kafka
+
+Проверено на `org.nextbi.dataflow:tracing-common:0.0.5`.
+
+Что подтверждено:
+
+- Kafka propagation работает без ручных вызовов `KafkaTracingService`;
+- producer использует обычный `KafkaTemplate.send(topic, key, value)`;
+- consumers используют обычные `@KafkaListener` методы;
+- Kafka consumer spans попадают в общий checkout trace;
+- consumer groups находятся в состоянии `Stable`;
+- consumer lag равен `0`.
+
+Проверенные Kafka spans:
+
+```text
+kafka checkout.order-created consume
+kafka checkout.order-completed consume
+```
+
+Ожидаемые Kafka tags в Jaeger:
+
+```text
+component = kafka
+span.kind = consumer
+kafka.topic = checkout.order-created / checkout.order-completed
+kafka.consumer.group = inventory-service / pricing-service / payment-service
+message_bus.destination = checkout.order-created / checkout.order-completed
+```
+
+Проверенный Kafka flow:
+
+```text
+order-service -> checkout.order-created -> inventory-service
+order-service -> checkout.order-created -> pricing-service
+order-service -> checkout.order-completed -> payment-service
+```
+
+Контрольные команды:
+
+```powershell
+./gradlew.bat test
+./infrastructure/start-demo.ps1
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
+```
+
+Проверка consumer groups:
+
+```powershell
+docker exec sample-for-tracing-redpanda rpk group describe inventory-service
+docker exec sample-for-tracing-redpanda rpk group describe pricing-service
+docker exec sample-for-tracing-redpanda rpk group describe payment-service
+```
 
 ## TODO
 
-- доработать `tracing-common` для полностью автоматической Kafka-обвязки `KafkaTemplate` и `@KafkaListener`
-- убрать явные вызовы `KafkaTracingService` из сервисов после появления auto-wrap в starter-е
-- инструкция по доработке starter-а лежит в `TRACING_COMMON_KAFKA_AUTOWRAP_INSTRUCTIONS.txt`
+- проверить error spans для Kafka consumer сценариев
+- решить, нужен ли отдельный producer span или достаточно автоматического inject headers
+- после проверки в реальном `dataflow` актуализировать `TRACING_COMMON_KAFKA_AUTOWRAP_INSTRUCTIONS.txt`
