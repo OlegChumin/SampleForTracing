@@ -42,6 +42,7 @@ Docker Compose конфигурация лежит в `infrastructure/docker-com
 
 Скрипт:
 - запускает Jaeger all-in-one через Docker Compose;
+- запускает Redpanda как локальный Kafka-compatible broker;
 - стартует все 5 сервисов в отдельных окнах PowerShell;
 - автоматически открывает:
   - `http://localhost:8080`
@@ -91,9 +92,20 @@ http://localhost:8080
 - `ERROR` - внутренняя ошибка платёжного сервиса с ответом `500`.
 - `DELAYED` - успешная оплата с искусственной задержкой для длинных span.
 
+## Kafka Flow
+
+В checkout flow добавлена Kafka side-chain для проверки propagation через Kafka:
+
+- `order-service` публикует `checkout.order-created` после создания заказа.
+- `inventory-service` и `pricing-service` читают `checkout.order-created`.
+- `order-service` публикует `checkout.order-completed` после успешной оплаты.
+- `payment-service` читает `checkout.order-completed`.
+
+REST-цепочка при этом остаётся основной, Kafka используется как параллельная ветка для проверки producer/consumer spans.
+Trace context для Kafka прокидывается через `KafkaTracingService` из `tracing-common`: producer пишет headers в `ProducerRecord`, consumers открывают span обработки из `ConsumerRecord`.
+
 ## TODO
 
-- проверить propagation активного span через `ExecutorService`/`CompletableFuture`
-- сейчас синхронный вызов `payment-service` попадает в общий trace, а асинхронные вызовы `inventory-service` и `pricing-service` становятся отдельными root traces
-- при необходимости доработать `tracing-common`, чтобы starter автоматически оборачивал Spring `Executor`/`ExecutorService` или давал готовый tracing-aware executor
-- после доработки повторить проверку Jaeger: единый trace, spans всех 5 сервисов и dependency graph
+- доработать `tracing-common` для полностью автоматической Kafka-обвязки `KafkaTemplate` и `@KafkaListener`
+- убрать явные вызовы `KafkaTracingService` из сервисов после появления auto-wrap в starter-е
+- инструкция по доработке starter-а лежит в `TRACING_COMMON_KAFKA_AUTOWRAP_INSTRUCTIONS.txt`

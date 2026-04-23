@@ -12,6 +12,9 @@ import org.example.samplefortracing.order.client.dto.PaymentRequest;
 import org.example.samplefortracing.order.client.dto.PaymentResponse;
 import org.example.samplefortracing.order.client.dto.PricingRequest;
 import org.example.samplefortracing.order.client.dto.PricingResponse;
+import org.example.samplefortracing.order.event.CheckoutEventPublisher;
+import org.example.samplefortracing.order.event.OrderCompletedEvent;
+import org.example.samplefortracing.order.event.OrderCreatedEvent;
 import org.example.samplefortracing.order.repository.InMemoryOrderRepository;
 import org.example.samplefortracing.order.service.OrderProcessingService;
 import org.junit.jupiter.api.AfterEach;
@@ -75,7 +78,22 @@ class OrderControllerTests {
             pricingGateway,
             paymentGateway,
             new InMemoryOrderRepository(),
-            executorService
+            executorService,
+            new NoopCheckoutEventPublisher()
         );
+    }
+
+    /**
+     * Игнорирует события в unit-тестах контроллера.
+     */
+    private static class NoopCheckoutEventPublisher implements CheckoutEventPublisher {
+
+        @Override
+        public void publishOrderCreated(OrderCreatedEvent event) {
+        }
+
+        @Override
+        public void publishOrderCompleted(OrderCompletedEvent event) {
+        }
     }
 }

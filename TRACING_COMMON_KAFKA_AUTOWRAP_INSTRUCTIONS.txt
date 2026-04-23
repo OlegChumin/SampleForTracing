@@ -1,0 +1,337 @@
+Инструкция для доработки tracing-common: автоматическая Kafka tracing обвязка
+
+Текущий статус
+==============
+
+В SampleForTracing Kafka propagation уже работает на tracing-common:0.0.4.
+
+Сейчас сервисы используют API starter-а явно:
+
+- producer вызывает KafkaTracingService.injectTraceContext(producerRecord)
+- consumer вызывает KafkaTracingService.startConsumerSpan(consumerRecord, operationName)
+
+Это рабочий вариант. Kafka consumer spans попадают в общий checkout trace:
+
+- kafka checkout.order-created inventory
+- kafka checkout.order-created pricing
+- kafka checkout.order-completed payment
+
+Но это всё ещё не полностью автоматический starter-сценарий, потому что пользователь должен помнить про KafkaTracingService в бизнес-коде.
+
+
+Цель доработки
+==============
+
+Сделать так, чтобы пользователь писал обычный Spring Kafka код:
+
+KafkaTemplate.send(topic, key, value)
+
+и обычный listener:
+
+@KafkaListener(...)
+public void handle(Event event) {
+    ...
+}
+
+А tracing-common сам:
+
+- добавляет trace headers в producer records
+- извлекает trace headers на consumer стороне
+- создаёт consumer span обработки сообщения
+- активирует span на время вызова listener method
+- закрывает span после обработки
+- помечает span как error при исключении
+
+
+Что нужно добавить
+==================
+
+1. Producer side
+----------------
+
+Добавить автоматический producer interceptor или wrapper для KafkaTemplate.
+
+Вариант A: ProducerInterceptor
+
+Реализовать org.apache.kafka.clients.producer.ProducerInterceptor.
+В onSend(ProducerRecord) вызвать KafkaTracingService.injectTraceContext(record).
+
+Плюсы:
+- работает ниже уровня KafkaTemplate
+- не требует менять код отправки
+
+Минусы:
+- interceptor создаётся Kafka client-ом, сложнее прокинуть Spring bean KafkaTracingService
+- может потребоваться конфигурация через producer properties
+
+Вариант B: KafkaTemplate wrapper / BeanPostProcessor
+
+Добавить BeanPostProcessor, который оборачивает KafkaTemplate.
+Переопределить send(...) методы и перед отправкой создавать ProducerRecord с headers.
+
+Плюсы:
+- проще использовать Spring beans
+- можно напрямую использовать KafkaTracingService
+
+Минусы:
+- у KafkaTemplate много overload методов
+- нужно аккуратно не сломать поведение sendDefault, transactions, metrics, flush
+
+Вариант C: ProducerFactory wrapper
+
+Оборачивать ProducerFactory и возвращать producer, который inject-ит headers перед send.
+
+Плюсы:
+- ближе к Kafka client layer
+- меньше overload-ов KafkaTemplate
+
+Минусы:
+- сложнее реализация и тесты
+
+Рекомендация:
+Начать с ProducerFactory wrapper или ProducerInterceptor. KafkaTemplate wrapper делать только если нужен быстрый MVP.
+
+
+2. Consumer side
+----------------
+
+Добавить автоматическую consumer/listener обвязку.
+
+Вариант A: RecordInterceptor
+
+Spring Kafka поддерживает RecordInterceptor.
+В interceptor можно получить ConsumerRecord и открыть KafkaTracingScope.
+
+Нужно обеспечить:
+- startConsumerSpan до вызова listener
+- close после listener
+- recordError при исключении
+
+Важно проверить, какой callback гарантированно вызывается после listener.
+Если RecordInterceptor не даёт удобного finally, использовать Advice.
+
+Вариант B: KafkaListener container advice
+
+Добавить MethodInterceptor / Advice для listener container factory.
+Оборачивать вызов listener method в KafkaTracingScope.
+
+Плюсы:
+- можно точно закрыть scope вокруг listener invocation
+- хорошо ложится на Spring Kafka listener lifecycle
+
+Минусы:
+- нужно аккуратно подключиться к ConcurrentKafkaListenerContainerFactory
+
+Вариант C: BeanPostProcessor для ConcurrentKafkaListenerContainerFactory
+
+После создания factory добавить RecordInterceptor или Advice.
+
+Рекомендация:
+Использовать BeanPostProcessor для ConcurrentKafkaListenerContainerFactory и добавлять tracing advice/interceptor.
+
+
+3. Operation names
+------------------
+
+Нужно определить понятное имя span-а.
+
+Варианты:
+
+- kafka <topic> consume
+- kafka <topic> <groupId>
+- kafka <topic> <listenerMethod>
+
+Рекомендуемый формат:
+
+kafka <topic> consume
+
+Дополнительные tags:
+
+- component = kafka
+- span.kind = consumer
+- message_bus.destination = <topic>
+- kafka.topic = <topic>
+- kafka.partition = <partition>
+- kafka.offset = <offset>
+- kafka.consumer.group = <groupId>, если доступен
+
+Для producer span, если решим его создавать:
+
+- component = kafka
+- span.kind = producer
+- message_bus.destination = <topic>
+- kafka.topic = <topic>
+
+Важно:
+Если producer span создавать не хотим, минимум нужно inject-ить active span context в headers.
+
+
+4. Headers
+----------
+
+Использовать уже существующие компоненты:
+
+- JaegerKafkaTracingInjector
+- JaegerKafkaTracingExtractor
+- KafkaHeadersTextMap
+- KafkaTracingService
+
+Не плодить новые форматы headers.
+
+Проверять headers:
+
+- uber-trace-id
+- traceid
+- spanid
+
+Минимальный критерий:
+Consumer должен восстановить parent context из headers producer-а.
+
+
+5. Properties
+-------------
+
+Добавить настройки управления:
+
+tracing.kafka.enabled=true
+tracing.kafka.producer.enabled=true
+tracing.kafka.consumer.enabled=true
+
+Можно добавить:
+
+tracing.kafka.create-producer-span=false
+tracing.kafka.consumer-operation-name-pattern=kafka {topic} consume
+
+По умолчанию:
+
+- kafka tracing включён, если в classpath есть spring-kafka
+- producer inject включён
+- consumer span включён
+- producer span можно не создавать, чтобы не раздувать trace
+
+
+6. Autoconfiguration
+--------------------
+
+Добавить отдельную auto-configuration:
+
+KafkaTracingAutoConfiguration
+
+Условия:
+
+- @ConditionalOnClass(KafkaTemplate.class)
+- @ConditionalOnClass(KafkaListener.class)
+- @ConditionalOnBean(Tracer.class)
+- @ConditionalOnBean(KafkaTracingService.class)
+- @ConditionalOnProperty(prefix = "tracing.kafka", name = "enabled", havingValue = "true", matchIfMissing = true)
+
+Зарегистрировать:
+
+- producer wrapper/interceptor config
+- consumer container factory post-processor
+- properties class
+
+Не забыть добавить auto-configuration в:
+
+META-INF/spring/org.springframework.boot.autoconfigure.AutoConfiguration.imports
+
+
+7. Double wrapping
+------------------
+
+Обязательно защититься от повторного wrapping:
+
+- marker interface
+- bean name marker
+- instanceof check
+- internal flag в post-processor
+
+Иначе можно получить повторный inject headers или двойные consumer spans.
+
+
+8. Ошибки
+---------
+
+Consumer span должен:
+
+- ставить error=true при исключении listener-а
+- логировать exception object/message
+- закрываться в finally
+- не глотать исключение
+
+Исключение должно идти дальше в Spring Kafka error handling.
+
+
+9. Тесты в tracing-common
+=========================
+
+Unit tests:
+
+1. Producer inject:
+   - есть active span
+   - отправляется ProducerRecord
+   - в headers появляется trace context
+
+2. Producer without active span:
+   - active span отсутствует
+   - send не падает
+   - headers не содержат trace context
+
+3. Consumer span:
+   - ConsumerRecord содержит trace headers
+   - listener выполняется внутри active span
+   - span.kind=consumer
+   - component=kafka
+
+4. Consumer without headers:
+   - создаётся root consumer span
+   - listener выполняется без ошибки
+
+5. Consumer error:
+   - listener кидает исключение
+   - span помечается error=true
+   - exception пробрасывается дальше
+
+6. Double wrapping:
+   - повторная обработка bean post processor не создаёт двойной wrapper
+
+Spring Boot tests:
+
+1. KafkaTracingAutoConfiguration создает нужные beans при наличии spring-kafka.
+2. Kafka tracing отключается через tracing.kafka.enabled=false.
+3. Producer отключается через tracing.kafka.producer.enabled=false.
+4. Consumer отключается через tracing.kafka.consumer.enabled=false.
+
+
+10. Проверка на SampleForTracing
+================================
+
+После публикации новой версии starter-а:
+
+1. Убрать явные вызовы KafkaTracingService из SampleForTracing.
+2. Вернуть обычный KafkaTemplate.send(...).
+3. Вернуть обычные @KafkaListener методы без ConsumerRecord, если это нужно.
+4. Запустить:
+
+./gradlew.bat test
+
+5. Поднять стенд:
+
+./infrastructure/start-demo.ps1
+
+6. Выполнить checkout request.
+
+7. Проверить Jaeger:
+
+- REST trace не сломан
+- async executor trace не сломан
+- Kafka consumer spans появились
+- Kafka consumer spans в том же trace
+- inventory/pricing/payment Kafka consumers не root traces
+- dependency graph строится
+
+
+Критерий готовности
+===================
+
+Доработка считается успешной, если сервисы не используют KafkaTracingService напрямую, но Kafka trace context всё равно автоматически проходит от producer к consumer и consumer spans попадают в общий checkout trace.

@@ -12,6 +12,9 @@ import org.example.samplefortracing.order.client.dto.PaymentRequest;
 import org.example.samplefortracing.order.client.dto.PaymentResponse;
 import org.example.samplefortracing.order.client.dto.PricingRequest;
 import org.example.samplefortracing.order.client.dto.PricingResponse;
+import org.example.samplefortracing.order.event.CheckoutEventPublisher;
+import org.example.samplefortracing.order.event.OrderCompletedEvent;
+import org.example.samplefortracing.order.event.OrderCreatedEvent;
 import org.example.samplefortracing.order.repository.InMemoryOrderRepository;
 import org.example.samplefortracing.order.service.model.OrderSnapshot;
 import org.slf4j.Logger;
@@ -38,6 +41,7 @@ public class OrderProcessingService {
     private final PaymentGateway paymentGateway;
     private final InMemoryOrderRepository inMemoryOrderRepository;
     private final ExecutorService orderTaskExecutor;
+    private final CheckoutEventPublisher checkoutEventPublisher;
 
     /**
      * Создаёт сервис оркестрации заказа.
@@ -47,17 +51,20 @@ public class OrderProcessingService {
      * @param paymentGateway клиент платёжного сервиса
      * @param inMemoryOrderRepository репозиторий заказов
      * @param orderTaskExecutor пул потоков для параллельных вызовов
+     * @param checkoutEventPublisher publisher checkout-событий
      */
     public OrderProcessingService(InventoryGateway inventoryGateway,
                                   PricingGateway pricingGateway,
                                   PaymentGateway paymentGateway,
                                   InMemoryOrderRepository inMemoryOrderRepository,
-                                  ExecutorService orderTaskExecutor) {
+                                  ExecutorService orderTaskExecutor,
+                                  CheckoutEventPublisher checkoutEventPublisher) {
         this.inventoryGateway = inventoryGateway;
         this.pricingGateway = pricingGateway;
         this.paymentGateway = paymentGateway;
         this.inMemoryOrderRepository = inMemoryOrderRepository;
         this.orderTaskExecutor = orderTaskExecutor;
+        this.checkoutEventPublisher = checkoutEventPublisher;
     }
 
     /**
@@ -69,6 +76,9 @@ public class OrderProcessingService {
     public OrderProcessResponse process(OrderProcessRequest request) {
         String orderId = createOrderId();
         LOGGER.info("Order {} created and moved to PROCESSING", orderId);
+        checkoutEventPublisher.publishOrderCreated(
+            new OrderCreatedEvent(createEventId(), orderId, request.customerId(), request.itemId(), request.quantity())
+        );
 
         CompletableFuture<InventoryReservationResponse> inventoryFuture = CompletableFuture.supplyAsync(
             () -> inventoryGateway.reserve(new InventoryReservationRequest(request.itemId(), request.quantity())),
@@ -102,6 +112,17 @@ public class OrderProcessingService {
         );
         inMemoryOrderRepository.save(orderSnapshot);
         LOGGER.info("Order {} completed successfully", orderId);
+        checkoutEventPublisher.publishOrderCompleted(
+            new OrderCompletedEvent(
+                createEventId(),
+                orderId,
+                request.customerId(),
+                orderSnapshot.totalAmount(),
+                orderSnapshot.currency(),
+                paymentResponse.paymentId(),
+                orderSnapshot.status()
+            )
+        );
 
         return new OrderProcessResponse(
             orderId,
@@ -162,5 +183,14 @@ public class OrderProcessingService {
      */
     String createOrderId() {
         return "ORD-" + UUID.randomUUID().toString().substring(0, 8);
+    }
+
+    /**
+     * Формирует идентификатор события.
+     *
+     * @return новый идентификатор события
+     */
+    String createEventId() {
+        return "EVT-" + UUID.randomUUID().toString().substring(0, 8);
     }
 }
