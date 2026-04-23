@@ -93,7 +93,7 @@ http://localhost:8080
 
 ## TODO
 
-- исправить dependency management в `tracing-common`: `jaeger-client:1.3.2` несовместим с принудительным `libthrift:0.20.0`
-- после публикации новой версии starter-а повторно проверить запуск сервисов без локальных `JaegerTracerConfiguration`
-- после успешной runtime-проверки оставить в сервисах только чистое подключение `tracing-common`
-- повторить проверку Jaeger: сервисы, trace-цепочка, spans и dependency graph
+- проверить propagation активного span через `ExecutorService`/`CompletableFuture`
+- сейчас синхронный вызов `payment-service` попадает в общий trace, а асинхронные вызовы `inventory-service` и `pricing-service` становятся отдельными root traces
+- при необходимости доработать `tracing-common`, чтобы starter автоматически оборачивал Spring `Executor`/`ExecutorService` или давал готовый tracing-aware executor
+- после доработки повторить проверку Jaeger: единый trace, spans всех 5 сервисов и dependency graph

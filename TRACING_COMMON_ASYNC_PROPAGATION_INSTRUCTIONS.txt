@@ -1,0 +1,224 @@
+Инструкция для доработки tracing-common: propagation active span через async executor
+
+Проблема
+========
+
+В tracing-common:0.0.3 HTTP propagation через RestClient работает, но trace рвется при переходе в другой поток.
+
+Пример из order-service:
+
+CompletableFuture.supplyAsync(
+    () -> inventoryGateway.reserve(...),
+    orderTaskExecutor
+)
+
+CompletableFuture.supplyAsync(
+    () -> pricingGateway.calculate(...),
+    orderTaskExecutor
+)
+
+Active span хранится в ThreadLocal текущего потока. Когда задача уходит в поток ExecutorService, active span теряется.
+После этого RestClient interceptor внутри async-задачи не видит parent span и downstream HTTP request становится новым root trace.
+
+Фактический результат на 5 кубиках:
+- api-gateway -> order-service -> payment-service попадают в один trace
+- inventory-service и pricing-service уходят отдельными root traces
+
+Это уже не проблема RestClient. Нужно добавить propagation контекста через async executor в tracing-common.
+
+
+Что нужно добавить в starter
+============================
+
+1. Tracing-aware wrapper для Runnable.
+2. Tracing-aware wrapper для Callable.
+3. Tracing-aware wrapper для Executor.
+4. Tracing-aware wrapper для ExecutorService.
+5. Autoconfiguration или BeanPostProcessor, который оборачивает Spring beans типов:
+   - java.util.concurrent.Executor
+   - java.util.concurrent.ExecutorService
+   - org.springframework.core.task.TaskExecutor
+   - org.springframework.core.task.AsyncTaskExecutor
+6. Защиту от double wrapping.
+7. Тесты на сохранение active span при выполнении задачи в другом потоке.
+
+
+Минимальная идея реализации
+===========================
+
+TracingRunnable должен захватывать active span в момент создания wrapper-а и активировать его в момент run().
+
+public final class TracingRunnable implements Runnable {
+
+    private final Tracer tracer;
+    private final Span parentSpan;
+    private final Runnable delegate;
+
+    public TracingRunnable(Tracer tracer, Runnable delegate) {
+        this.tracer = tracer;
+        this.parentSpan = tracer.activeSpan();
+        this.delegate = delegate;
+    }
+
+    @Override
+    public void run() {
+        if (parentSpan == null) {
+            delegate.run();
+            return;
+        }
+
+        try (Scope ignored = tracer.scopeManager().activate(parentSpan)) {
+            delegate.run();
+        }
+    }
+}
+
+TracingCallable должен работать аналогично.
+
+
+Важные правила
+==============
+
+- Не создавать новый span только ради async-перехода.
+- Нужно реактивировать существующий parent span в новом потоке.
+- Если active span отсутствует, задача должна выполняться как есть.
+- Wrapper не должен закрывать parent span.
+- Wrapper должен закрывать только Scope.
+- Нельзя оборачивать executor повторно.
+- Нельзя ломать lifecycle executor beans.
+- Для ThreadPoolTaskExecutor лучше использовать TaskDecorator, если это возможно.
+- Для ExecutorService можно использовать delegating wrapper.
+
+
+Что оборачивать в ExecutorService
+=================================
+
+Минимально нужно покрыть:
+
+- execute(Runnable)
+- submit(Runnable)
+- submit(Runnable, result)
+- submit(Callable)
+- invokeAll(Collection<Callable>)
+- invokeAll(Collection<Callable>, timeout, unit)
+- invokeAny(Collection<Callable>)
+- invokeAny(Collection<Callable>, timeout, unit)
+
+Каждый Runnable должен превращаться в TracingRunnable.
+Каждый Callable должен превращаться в TracingCallable.
+
+
+Autoconfiguration
+=================
+
+В tracing-common нужно добавить autoconfiguration, которая после создания Spring beans оборачивает executors.
+
+Вариант 1: BeanPostProcessor.
+
+Он должен проверять beans типов:
+- Executor
+- ExecutorService
+- TaskExecutor
+- AsyncTaskExecutor
+
+Если bean уже tracing-aware, вернуть его без изменений.
+Если bean можно безопасно обернуть, вернуть delegating wrapper.
+
+Вариант 2: отдельный decorator/helper bean.
+
+Если автоматическое wrapping слишком рискованное, можно дать пользователю явный bean TracingExecutorDecorator.
+
+Тогда пользователь сможет сам применить:
+
+@Bean
+ExecutorService orderTaskExecutor(TracingExecutorDecorator decorator) {
+    return decorator.decorate(Executors.newFixedThreadPool(4));
+}
+
+Но для удобства starter-а предпочтительнее автоматический вариант с защитой от double wrapping.
+
+
+Ожидаемый результат
+===================
+
+Код в order-service остается без ручной tracing-обвязки.
+Но orderTaskExecutor уже должен быть tracing-aware.
+
+Тогда RestClient внутри async-задачи увидит active span и добавит trace headers.
+
+После этого в Jaeger должен появиться один связный trace:
+- api-gateway
+- order-service
+- inventory-service
+- pricing-service
+- payment-service
+
+Downstream calls из async-потоков не должны становиться root spans.
+
+
+Тесты в tracing-common
+======================
+
+1. Unit test для TracingRunnable:
+   - активировать mock span
+   - создать wrapper
+   - выполнить wrapper в другом потоке
+   - проверить, что внутри delegate есть active span
+
+2. Unit test для TracingCallable:
+   - активировать mock span
+   - создать wrapper
+   - выполнить wrapper в другом потоке
+   - проверить active span и return value
+
+3. Unit test для wrapped ExecutorService:
+   - submit Runnable
+   - submit Callable
+   - execute Runnable
+   - внутри задач проверить active span
+
+4. Spring Boot test:
+   - создать ExecutorService bean
+   - включить autoconfiguration tracing-common
+   - проверить, что bean стал tracing-aware
+   - проверить, что повторное wrapping не происходит
+
+5. Regression test для случая без active span:
+   - выполнить задачу без активного span
+   - задача должна выполниться без ошибок
+   - wrapper не должен создавать новый root span
+
+
+Проверка на кубиках после публикации новой версии
+=================================================
+
+1. Опубликовать новую версию tracing-common локально:
+
+./gradlew.bat clean publishToMavenLocal
+
+2. В SampleForTracing обновить зависимость на новую версию starter-а.
+
+3. Запустить тесты:
+
+./gradlew.bat test
+
+4. Поднять стенд:
+
+./infrastructure/start-demo.ps1
+
+5. Выполнить checkout:
+
+Invoke-RestMethod -Method Post -Uri http://localhost:8080/api/v1/checkout -ContentType 'application/json' -Body '{"customerId":"customer-1","itemId":"SKU-CHAIR-01","quantity":2,"paymentScenario":"SUCCESS"}'
+
+6. Проверить Jaeger:
+   - все 5 сервисов видны
+   - trace один, а не несколько отдельных
+   - inventory-service и pricing-service больше не root traces
+   - trace id одинаковый по всей цепочке
+   - dependency graph строится корректно
+
+
+Критерий готовности
+===================
+
+Доработка считается успешной, если checkout flow через CompletableFuture строит один связный trace через все 5 сервисов без локальной tracing-обвязки в сервисах.
