@@ -90,3 +90,10 @@ http://localhost:8080
 - `CONFLICT` - конфликт/повторная попытка с ответом `409`.
 - `ERROR` - внутренняя ошибка платёжного сервиса с ответом `500`.
 - `DELAYED` - успешная оплата с искусственной задержкой для длинных span.
+
+## TODO
+
+- исправить dependency management в `tracing-common`: `jaeger-client:1.3.2` несовместим с принудительным `libthrift:0.20.0`
+- после публикации новой версии starter-а повторно проверить запуск сервисов без локальных `JaegerTracerConfiguration`
+- после успешной runtime-проверки оставить в сервисах только чистое подключение `tracing-common`
+- повторить проверку Jaeger: сервисы, trace-цепочка, spans и dependency graph
